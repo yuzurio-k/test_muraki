@@ -1,0 +1,242 @@
+{% extends 'invoice_management/base.html' %}
+{% load invoice_extras %}
+
+{% block title %}請求書詳細 - {{ invoice.invoice_number }} - 請求書管理システム{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-file-invoice"></i> 請求書詳細</h1>
+    </div>
+    <div class="col-auto">
+        <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-primary">
+            <i class="fas fa-edit"></i> 編集
+        </a>
+        <a href="{% url 'invoice_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 一覧に戻る
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> 請求書情報</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>連番:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        {{ invoice.auto_number }}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>請求書番号:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        {{ invoice.invoice_number|default:"-" }}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>取引先会社:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        {{ invoice.company.name }} ({{ invoice.company.code }})
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>請求金額（税抜）:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        <span class="h5">¥{{ invoice.amount|floatformat:0 }}</span>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>消費税額:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        ¥{{ invoice.tax_amount|floatformat:0 }}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>総額:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        <span class="h4 text-primary">¥{{ invoice.total_amount|floatformat:0 }}</span>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>請求書日付:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        {{ invoice.invoice_date|date:"Y年m月d日" }}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>支払期限:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        {{ invoice.due_date|date:"Y年m月d日" }}
+                        {% now "Y-m-d" as today %}
+                        {% if invoice.due_date|date:"Y-m-d" < today and invoice.payment_status == 'pending' %}
+                            <span class="badge bg-danger ms-2">期限超過</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>支払状況:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        {% if invoice.payment_status == 'pending' %}
+                            <span class="badge bg-warning fs-6">未払い</span>
+                        {% elif invoice.payment_status == 'paid' %}
+                            <span class="badge bg-success fs-6">支払済み</span>
+                        {% else %}
+                            <span class="badge bg-secondary fs-6">キャンセル</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if invoice.description %}
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>摘要:</strong>
+                        </div>
+                        <div class="col-md-8">
+                            {{ invoice.description|linebreaks }}
+                        </div>
+                    </div>
+                {% endif %}
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>登録者:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        {{ invoice.registered_by|japanese_full_name }}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>登録日時:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        {{ invoice.created_at|date:"Y年m月d日 H:i" }}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <strong>更新日時:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        {{ invoice.updated_at|date:"Y年m月d日 H:i" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-building"></i> 取引先詳細</h5>
+            </div>
+            <div class="card-body">
+                <h6>{{ invoice.company.name }}</h6>
+                <p class="text-muted">{{ invoice.company.code }}</p>
+                
+                {% if invoice.company.address %}
+                    <div class="mb-2">
+                        <small class="text-muted">住所:</small><br>
+                        {{ invoice.company.address }}
+                    </div>
+                {% endif %}
+                
+                {% if invoice.company.phone %}
+                    <div class="mb-2">
+                        <small class="text-muted">電話:</small><br>
+                        {{ invoice.company.phone }}
+                    </div>
+                {% endif %}
+                
+                {% if invoice.company.email %}
+                    <div class="mb-2">
+                        <small class="text-muted">メール:</small><br>
+                        <a href="mailto:{{ invoice.company.email }}">{{ invoice.company.email }}</a>
+                    </div>
+                {% endif %}
+                
+                {% if invoice.company.contact_person %}
+                    <div class="mb-2">
+                        <small class="text-muted">担当者:</small><br>
+                        {{ invoice.company.contact_person }}
+                    </div>
+                {% endif %}
+                
+                <div class="mt-3">
+                    <a href="{% url 'company_edit' invoice.company.pk %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-edit"></i> 取引先を編集
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fas fa-cog"></i> アクション</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if invoice.payment_status == 'pending' %}
+                        <button class="btn btn-success" onclick="updatePaymentStatus('paid')">
+                            <i class="fas fa-check"></i> 支払済みにする
+                        </button>
+                    {% elif invoice.payment_status == 'paid' %}
+                        <button class="btn btn-warning" onclick="updatePaymentStatus('pending')">
+                            <i class="fas fa-undo"></i> 未払いに戻す
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 支払状況更新用のフォーム（非表示） -->
+<form id="payment-status-form" method="post" action="{% url 'invoice_edit' invoice.pk %}" style="display: none;">
+    {% csrf_token %}
+    <input type="hidden" name="payment_status" id="payment-status-value">
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updatePaymentStatus(status) {
+    if (confirm('支払状況を変更しますか？')) {
+        document.getElementById('payment-status-value').value = status;
+        document.getElementById('payment-status-form').submit();
+    }
+}
+</script>
+{% endblock %}

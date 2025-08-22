@@ -1,0 +1,156 @@
+{% extends 'invoice_management/base.html' %}
+
+{% block title %}{{ title }} - 請求書管理システム{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-building"></i> {{ title }}</h1>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.name.id_for_label }}" class="form-label">
+                                    会社名 <span class="text-danger">*</span>
+                                </label>
+                                {{ form.name }}
+                                {% if form.name.errors %}
+                                    <div class="text-danger small">{{ form.name.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.invoice_number.id_for_label }}" class="form-label">
+                                    インボイス番号
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">T</span>
+                                    {{ form.invoice_number }}
+                                </div>
+                                {% if form.invoice_number.errors %}
+                                    <div class="text-danger small">{{ form.invoice_number.errors }}</div>
+                                {% endif %}
+                                <div class="form-text">適格請求書発行事業者の登録番号（13桁の数字）</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.address.id_for_label }}" class="form-label">
+                            住所
+                        </label>
+                        {{ form.address }}
+                        {% if form.address.errors %}
+                            <div class="text-danger small">{{ form.address.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.phone.id_for_label }}" class="form-label">
+                                    電話番号
+                                </label>
+                                {{ form.phone }}
+                                {% if form.phone.errors %}
+                                    <div class="text-danger small">{{ form.phone.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.email.id_for_label }}" class="form-label">
+                                    メールアドレス
+                                </label>
+                                {{ form.email }}
+                                {% if form.email.errors %}
+                                    <div class="text-danger small">{{ form.email.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.contact_person.id_for_label }}" class="form-label">
+                            担当者名
+                        </label>
+                        {{ form.contact_person }}
+                        {% if form.contact_person.errors %}
+                            <div class="text-danger small">{{ form.contact_person.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.remarks.id_for_label }}" class="form-label">
+                            備考
+                        </label>
+                        {{ form.remarks }}
+                        {% if form.remarks.errors %}
+                            <div class="text-danger small">{{ form.remarks.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'company_list' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> 戻る
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> 保存
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const invoiceNumberInput = document.getElementById('invoice_number_input');
+    
+    if (invoiceNumberInput) {
+        // 既存の値を処理（Tが含まれている場合は除去）
+        let currentValue = invoiceNumberInput.value;
+        if (currentValue && currentValue.startsWith('T')) {
+            invoiceNumberInput.value = currentValue.substring(1);
+        }
+        
+        // 数字のみの入力制限
+        invoiceNumberInput.addEventListener('input', function(e) {
+            // 数字以外を除去
+            this.value = this.value.replace(/[^0-9]/g, '');
+            
+            // 13桁を超える場合は切り詰め
+            if (this.value.length > 13) {
+                this.value = this.value.substring(0, 13);
+            }
+        });
+        
+        // ペースト時の処理
+        invoiceNumberInput.addEventListener('paste', function(e) {
+            setTimeout(() => {
+                let pastedValue = this.value;
+                // Tが含まれている場合は除去
+                if (pastedValue.startsWith('T')) {
+                    pastedValue = pastedValue.substring(1);
+                }
+                // 数字以外を除去
+                this.value = pastedValue.replace(/[^0-9]/g, '').substring(0, 13);
+            }, 10);
+        });
+    }
+});
+</script>
+{% endblock %}

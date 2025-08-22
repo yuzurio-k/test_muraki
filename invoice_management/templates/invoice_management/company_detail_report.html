@@ -1,0 +1,701 @@
+{% extends 'invoice_management/base.html' %}
+{% load humanize %}
+{% load invoice_extras %}
+
+{% block title %}会社別詳細レポート - 請求書管理システム{% endblock %}
+
+{% block extra_css %}
+<style>
+.company-autocomplete {
+    position: relative;
+}
+
+.company-input:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.company-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ced4da;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.suggestion-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.suggestion-item:hover {
+    background-color: #f8f9fa;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item.active {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+.dropdown-menu .company-option {
+    white-space: normal;
+    word-wrap: break-word;
+}
+
+.dropdown-menu .company-option:hover {
+    background-color: #f8f9fa;
+}
+
+.input-group .dropdown-toggle {
+    border-left: none;
+}
+
+.input-group .form-control:focus + .dropdown-toggle {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-building"></i> 会社別詳細レポート</h1>
+    </div>
+</div>
+
+<!-- 会社・年選択と税込・税抜選択 -->
+<div class="row mb-3">
+    <div class="col-md-12">
+        <form method="get" class="d-flex align-items-end flex-wrap">
+            <div class="me-3 mb-2">
+                <label for="company-input" class="form-label">会社:</label>
+                <div class="company-autocomplete" style="position: relative; width: 250px;">
+                    <div class="input-group">
+                        <input type="text" id="company-input" class="form-control company-input" 
+                               placeholder="会社名またはコードを入力..." autocomplete="off"
+                               value="{% if selected_company %}{{ selected_company.name }}{% endif %}">
+                        <button type="button" class="btn btn-outline-secondary dropdown-toggle" 
+                                id="company-dropdown-btn" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <ul class="dropdown-menu w-100" id="company-dropdown-menu" style="max-height: 300px; overflow-y: auto;">
+                            {% for company in companies %}
+                                <li><a class="dropdown-item company-option" href="#" data-id="{{ company.id }}" data-name="{{ company.name }}" data-code="{{ company.code }}">
+                                    <strong>{{ company.code }}</strong> - {{ company.name }}
+                                </a></li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div id="company-suggestions" class="company-suggestions"></div>
+                    <!-- 隠しフィールド: 会社ID -->
+                    <input type="hidden" name="company" id="id_company" value="{% if selected_company %}{{ selected_company.pk }}{% endif %}">
+                    <!-- デバッグ用: 現在の会社ID = {% if selected_company %}{{ selected_company.pk }}{% else %}未選択{% endif %} -->
+                    <select name="company_select" id="company-select" style="display: none;">
+                        <option value="">会社を選択してください</option>
+                        {% for company in companies %}
+                            <option value="{{ company.id }}">{{ company.code }} - {{ company.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="me-3 mb-2">
+                <label for="year" class="form-label">年:</label>
+                <select name="year" id="year" class="form-control" style="width: 100px;">
+                    {% for year in year_range %}
+                        <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>
+                            {{ year }}年
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="me-3 mb-2">
+                <label for="tax_mode" class="form-label">表示:</label>
+                <select name="tax_mode" id="tax_mode" class="form-control" style="width: 100px;">
+                    <option value="including" {% if tax_mode == 'including' %}selected{% endif %}>税込</option>
+                    <option value="excluding" {% if tax_mode == 'excluding' %}selected{% endif %}>税抜</option>
+                </select>
+            </div>
+            <div class="mb-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search"></i> 表示
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if selected_company %}
+    <!-- 会社情報 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5><i class="fas fa-info-circle"></i> 会社情報</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th width="30%">会社コード:</th>
+                            <td>{{ selected_company.code }}</td>
+                        </tr>
+                        <tr>
+                            <th>会社名:</th>
+                            <td>{{ selected_company.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>インボイス番号:</th>
+                            <td>{{ selected_company.invoice_number|default:"-" }}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th width="30%">担当者:</th>
+                            <td>{{ selected_company.contact_person|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>電話番号:</th>
+                            <td>{{ selected_company.phone|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>メール:</th>
+                            <td>{{ selected_company.email|default:"-" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 統計サマリー -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h4>{{ total_invoices }}</h4>
+                    <p class="mb-0">総請求書数</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h4>¥{{ total_amount|floatformat:0|intcomma }}</h4>
+                    <p class="mb-0">年間総額 ({{ tax_mode_display }})</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h4>¥{{ avg_amount|floatformat:0|intcomma }}</h4>
+                    <p class="mb-0">平均請求額 ({{ tax_mode_display }})</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <h4>{{ status_stats.pending }}</h4>
+                    <p class="mb-0">未払い件数</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 月別推移グラフと支払状況 -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-line-chart"></i> {{ selected_year }}年 月別推移</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="monthlyChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-pie"></i> 月別支払い割合</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 月別詳細テーブル -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-table"></i> 月別詳細</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>月</th>
+                                    <th>件数</th>
+                                    <th>合計金額 ({{ tax_mode_display }})</th>
+                                    <th>平均金額 ({{ tax_mode_display }})</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for month in months %}
+                                    {% with data=monthly_data|lookup:month %}
+                                        <tr>
+                                            <td>{{ month }}月</td>
+                                            <td>{{ data.count }}件</td>
+                                            <td class="text-end">¥{{ data.total|floatformat:0|intcomma }}</td>
+                                            <td class="text-end">
+                                                {% if data.count > 0 %}
+                                                    ¥{{ data.total|div:data.count|floatformat:0|intcomma }}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endwith %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 請求書一覧 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-list"></i> 請求書一覧（{{ selected_year }}年）</h5>
+                </div>
+                <div class="card-body">
+                    {% if invoices %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>連番</th>
+                                        <th>請求書番号</th>
+                                        <th>請求日</th>
+                                        <th>支払期限</th>
+                                        <th>金額</th>
+                                        <th>状況</th>
+                                        <th>登録者</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for invoice in invoices %}
+                                        <tr>
+                                            <td>
+                                                <a href="{% url 'invoice_detail' invoice.pk %}">
+                                                    {{ invoice.auto_number }}
+                                                </a>
+                                            </td>
+                                            <td>{{ invoice.invoice_number|default:"-" }}</td>
+                                            <td>{{ invoice.invoice_date|date:"Y/m/d" }}</td>
+                                            <td>{{ invoice.due_date|date:"Y/m/d" }}</td>
+                                            <td class="text-end">¥{{ invoice.total_amount|floatformat:0|intcomma }}</td>
+                                            <td>
+                                                {% if invoice.payment_status == 'pending' %}
+                                                    <span class="badge bg-warning">未払い</span>
+                                                {% elif invoice.payment_status == 'paid' %}
+                                                    <span class="badge bg-success">支払済み</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">延滞</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ invoice.registered_by|japanese_full_name }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-file-invoice fa-3x text-muted mb-3"></i>
+                            <h4>{{ selected_year }}年のデータがありません</h4>
+                            <p class="text-muted">この年の請求書が登録されていません。</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-building fa-3x text-muted mb-3"></i>
+        <h4>会社を選択してください</h4>
+        <p class="text-muted">上記のフォームから分析したい会社を選択してください。</p>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% if selected_company %}
+{{ monthly_chart_data|json_script:"monthly-data" }}
+{{ monthly_pie_data|json_script:"monthly-pie-data" }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 月別推移グラフ
+    const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+    const monthlyData = JSON.parse(document.getElementById('monthly-data').textContent);
+    
+    new Chart(monthlyCtx, {
+        type: 'line',
+        data: {
+            labels: monthlyData.map(item => item.month),
+            datasets: [{
+                label: '請求金額',
+                data: monthlyData.map(item => item.amount),
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '¥' + value.toLocaleString();
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // 月別支払い円グラフ
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    const monthlyPieData = JSON.parse(document.getElementById('monthly-pie-data').textContent);
+    
+    if (monthlyPieData && monthlyPieData.length > 0) {
+        new Chart(statusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: monthlyPieData.map(item => item.month),
+                datasets: [{
+                    data: monthlyPieData.map(item => item.amount),
+                    backgroundColor: [
+                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                        '#FF9F40', '#F7DC6F', '#BB8FCE', '#85C1E9', '#F8C471',
+                        '#82E0AA', '#F1948A'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.raw.toLocaleString();
+                                return context.label + ': ¥' + value;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        // データがない場合のメッセージ
+        statusCtx.canvas.style.display = 'none';
+        statusCtx.canvas.parentElement.innerHTML = '<p class="text-center text-muted">データがありません</p>';
+    }
+});
+</script>
+{% endif %}
+
+<script>
+// DOM読み込み完了後に初期化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, starting company autocomplete initialization...');
+    
+    // 少し遅延させて確実に要素が見つかるようにする
+    setTimeout(() => {
+        console.log('=== Company autocomplete initialization ===');
+        
+        // 要素取得
+        const companyInput = document.getElementById('company-input');
+        const companySuggestions = document.getElementById('company-suggestions');
+        const companyHidden = document.getElementById('id_company');
+        const companySelect = document.getElementById('company-select');
+        
+        console.log('Elements found:', {
+            companyInput: !!companyInput,
+            companySuggestions: !!companySuggestions,
+            companyHidden: !!companyHidden,
+            companySelect: !!companySelect
+        });
+        
+        // 基本要素が見つからない場合はエラー表示
+        if (!companyInput) {
+            console.error('Company input element not found!');
+            return;
+        }
+        if (!companySuggestions) {
+            console.error('Company suggestions element not found!');
+            return;
+        }
+        
+        // 会社データ配列
+        let companies = [];
+        let selectedIndex = -1;
+
+        // 会社データを読み込む（複数の方法を試行）
+        function loadCompanies() {
+            console.log('Loading companies...');
+            
+            // 方法1: ドロップダウンメニューのdata属性から読み取り
+            const companyOptions = document.querySelectorAll('.company-option');
+            console.log('Found dropdown options:', companyOptions.length);
+            
+            if (companyOptions.length > 0) {
+                companies = Array.from(companyOptions).map(option => ({
+                    id: option.getAttribute('data-id'),
+                    name: option.getAttribute('data-name'),
+                    code: option.getAttribute('data-code')
+                }));
+                console.log('Companies loaded from dropdown:', companies.length);
+            }
+            
+            // 方法2: selectオプションから読み取り（フォールバック）
+            if (companies.length === 0 && companySelect) {
+                const selectOptions = companySelect.querySelectorAll('option');
+                console.log('Found select options:', selectOptions.length);
+                
+                companies = Array.from(selectOptions)
+                    .filter(option => option.value)
+                    .map(option => ({
+                        id: option.value,
+                        name: option.textContent.trim(),
+                        code: ''
+                    }));
+                console.log('Companies loaded from select:', companies.length);
+            }
+            
+            console.log('Total companies loaded:', companies.length);
+            if (companies.length > 0) {
+                console.log('First 3 companies:', companies.slice(0, 3));
+            }
+        }
+
+        // 会社データをフィルタリング
+        function filterCompanies(query) {
+            if (!query.trim()) return [];
+            
+            const lowerQuery = query.toLowerCase();
+            return companies.filter(company => 
+                company.name.toLowerCase().includes(lowerQuery) ||
+                (company.code && company.code.toLowerCase().includes(lowerQuery))
+            );
+        }
+
+        // 提案リストを表示
+        function showSuggestions(filteredCompanies) {
+            companySuggestions.innerHTML = '';
+            
+            if (filteredCompanies.length === 0) {
+                const noResult = document.createElement('div');
+                noResult.className = 'suggestion-item text-muted p-3';
+                noResult.textContent = '該当する会社が見つかりません';
+                companySuggestions.appendChild(noResult);
+            } else {
+                filteredCompanies.forEach(company => {
+                    const item = document.createElement('div');
+                    item.className = 'suggestion-item';
+                    item.innerHTML = `
+                        <div class="company-info">
+                            <div class="company-name">${company.name}</div>
+                            ${company.code ? `<div class="company-code">${company.code}</div>` : ''}
+                        </div>
+                    `;
+                    
+                    item.addEventListener('click', function() {
+                        selectCompany(company);
+                    });
+                    
+                    companySuggestions.appendChild(item);
+                });
+            }
+            
+            companySuggestions.style.display = 'block';
+            selectedIndex = -1;
+        }
+
+        // 提案リストを非表示
+        function hideSuggestions() {
+            companySuggestions.style.display = 'none';
+            selectedIndex = -1;
+        }
+
+        // 会社を選択
+        function selectCompany(company) {
+            console.log('selectCompany called with:', company);
+            companyInput.value = company.name;
+            if (companyHidden) {
+                companyHidden.value = company.id;
+                console.log('Hidden field set to:', company.id);
+            }
+            hideSuggestions();
+            
+            // フォームを自動送信
+            const form = companyInput.closest('form');
+            if (form) {
+                console.log('Submitting form...');
+                form.submit();
+            } else {
+                console.log('Form not found!');
+            }
+        }
+
+        // キーボードナビゲーション用の関数を追加
+        function updateSelection(direction) {
+            const items = companySuggestions.querySelectorAll('.suggestion-item:not(.text-muted)');
+            if (items.length === 0) return;
+
+            // 前の選択を解除
+            items.forEach(item => item.classList.remove('active'));
+
+            // 新しい選択インデックスを計算
+            if (direction === 'down') {
+                selectedIndex = (selectedIndex + 1) % items.length;
+            } else if (direction === 'up') {
+                selectedIndex = selectedIndex <= 0 ? items.length - 1 : selectedIndex - 1;
+            }
+
+            // 新しい選択を適用
+            if (selectedIndex >= 0 && selectedIndex < items.length) {
+                items[selectedIndex].classList.add('active');
+            }
+        }
+
+        // イベントリスナーを設定
+        if (companyInput && companySuggestions) {
+            console.log('Setting up event listeners...');
+            
+            companyInput.addEventListener('input', function() {
+                const query = this.value;
+                console.log('Input event triggered, query:', query);
+                const filteredCompanies = filterCompanies(query);
+                console.log('Filtered companies:', filteredCompanies);
+                
+                if (query.trim()) {
+                    showSuggestions(filteredCompanies);
+                } else {
+                    hideSuggestions();
+                    if (companyHidden) {
+                        companyHidden.value = '';
+                    }
+                }
+            });
+
+            companyInput.addEventListener('focus', function() {
+                const query = this.value;
+                if (query.trim()) {
+                    const filteredCompanies = filterCompanies(query);
+                    showSuggestions(filteredCompanies);
+                }
+            });
+
+            companyInput.addEventListener('keydown', function(e) {
+                const items = companySuggestions.querySelectorAll('.suggestion-item:not(.text-muted)');
+                
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    updateSelection('down');
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    updateSelection('up');
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (selectedIndex >= 0 && selectedIndex < items.length) {
+                        const selectedItem = items[selectedIndex];
+                        const company = companies.find(c => 
+                            selectedItem.textContent.includes(c.name)
+                        );
+                        if (company) {
+                            selectCompany(company);
+                        }
+                    }
+                } else if (e.key === 'Escape') {
+                    hideSuggestions();
+                }
+            });
+
+            // 外部クリックで提案リストを非表示
+            document.addEventListener('click', function(e) {
+                if (!companyInput.contains(e.target) && !companySuggestions.contains(e.target)) {
+                    hideSuggestions();
+                }
+            });
+
+            // ドロップダウンメニューのイベントリスナー
+            const companyOptions = document.querySelectorAll('.company-option');
+            console.log('Found company options:', companyOptions.length);
+            companyOptions.forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const company = {
+                        id: this.getAttribute('data-id'),
+                        name: this.getAttribute('data-name'),
+                        code: this.getAttribute('data-code')
+                    };
+                    console.log('Dropdown clicked:', company);
+                    selectCompany(company);
+                    
+                    // ドロップダウンを閉じる
+                    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('company-dropdown-btn'));
+                    if (dropdown) {
+                        dropdown.hide();
+                    }
+                });
+            });
+            
+            // 初期化実行（会社データ読み込み）
+            loadCompanies();
+        } else {
+            console.error('Required elements not found:', {
+                companyInput: !!companyInput,
+                companySuggestions: !!companySuggestions
+            });
+        }
+    }, 200);
+});
+</script>
+{% endblock %}

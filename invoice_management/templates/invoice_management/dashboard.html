@@ -1,0 +1,181 @@
+{% extends 'invoice_management/base.html' %}
+{% load humanize %}
+
+{% block title %}ダッシュボード - 請求書管理システム{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-tachometer-alt"></i> ダッシュボード</h1>
+    </div>
+</div>
+
+{% if user.is_authenticated %}
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ total_invoices }}</h4>
+                            <p class="mb-0">総請求書数</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-file-invoice fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ pending_invoices }}</h4>
+                            <p class="mb-0">未払い請求書</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-clock fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>¥{{ total_amount|floatformat:0|intcomma }}</h4>
+                            <p class="mb-0">総請求金額</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-yen-sign fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>¥{{ pending_amount|floatformat:0|intcomma }}</h4>
+                            <p class="mb-0">未払い金額</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-exclamation-triangle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-history"></i> 最近の請求書</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_invoices %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>請求日</th>
+                                        <th>取引先</th>
+                                        <th>金額</th>
+                                        <th>状況</th>
+                                        <th>登録日</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for invoice in recent_invoices %}
+                                        <tr>
+                                            <td>
+                                                <a href="{% url 'invoice_detail' invoice.pk %}">
+                                                    {{ invoice.invoice_date|date:"Y/m/d" }}
+                                                </a>
+                                            </td>
+                                            <td>{{ invoice.company.name }}</td>
+                                            <td>¥{{ invoice.total_amount|floatformat:0|intcomma }}</td>
+                                            <td>
+                                                {% if invoice.payment_status == 'pending' %}
+                                                    <span class="badge bg-warning">未払い</span>
+                                                {% elif invoice.payment_status == 'paid' %}
+                                                    <span class="badge bg-success">支払済み</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">キャンセル</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ invoice.created_at|date:"Y/m/d" }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="text-center">
+                            <a href="{% url 'invoice_list' %}" class="btn btn-primary">
+                                すべての請求書を見る
+                            </a>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">まだ請求書が登録されていません。</p>
+                        <a href="{% url 'invoice_add' %}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> 請求書を登録する
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-rocket"></i> クイックアクション</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'invoice_add' %}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> 請求書登録
+                        </a>
+                        <a href="{% url 'company_add' %}" class="btn btn-outline-primary">
+                            <i class="fas fa-building"></i> 取引先追加
+                        </a>
+                        <a href="{% url 'monthly_report' %}" class="btn btn-outline-info">
+                            <i class="fas fa-calendar-alt"></i> 月別請求金額表
+                        </a>
+                        <a href="{% url 'invoice_list' %}?status=pending" class="btn btn-outline-warning">
+                            <i class="fas fa-clock"></i> 未払い請求書
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h2><i class="fas fa-file-invoice-dollar fa-3x text-primary mb-3"></i></h2>
+                    <h3>請求書管理システムへようこそ</h3>
+                    <p class="text-muted">請求書の管理を効率的に行うシステムです。</p>
+                    <div class="d-grid gap-2 d-md-block">
+                        <a href="{% url 'login' %}" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt"></i> ログイン
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

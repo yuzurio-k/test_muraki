@@ -1,0 +1,180 @@
+{% extends 'invoice_management/base.html' %}
+{% load invoice_extras %}
+{% load humanize %}
+
+{% block title %}月別請求金額表 - 請求書管理システム{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-chart-bar"></i> 月別請求金額表</h1>
+    </div>
+</div>
+
+<!-- 年選択と税込・税抜選択 -->
+<div class="row mb-3">
+    <div class="col-md-8">
+        <form method="get" class="d-flex align-items-center">
+            <div class="me-3">
+                <label for="year" class="form-label me-2">年:</label>
+                <select name="year" id="year" class="form-control" style="width: auto; display: inline-block;">
+                    {% for year in year_range %}
+                        <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>
+                            {{ year }}年
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="me-3">
+                <label for="tax_mode" class="form-label me-2">表示:</label>
+                <select name="tax_mode" id="tax_mode" class="form-control" style="width: auto; display: inline-block;">
+                    <option value="including" {% if tax_mode == 'including' %}selected{% endif %}>税込</option>
+                    <option value="excluding" {% if tax_mode == 'excluding' %}selected{% endif %}>税抜</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i> 表示
+            </button>
+        </form>
+    </div>
+    <div class="col-md-4 text-end">
+        <span class="badge bg-info fs-6">現在の表示: {{ tax_mode_display }}</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5><i class="fas fa-table"></i> {{ selected_year }}年 月別請求金額一覧（{{ tax_mode_display }}）</h5>
+    </div>
+    <div class="card-body">
+        {% if monthly_data %}
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="sticky-left">取引先</th>
+                            {% for month in months %}
+                                <th class="text-center">{{ month }}月</th>
+                            {% endfor %}
+                            <th class="text-center bg-warning">合計</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for company_id, data in monthly_data.items %}
+                            {% with company_total=company_totals|lookup:company_id %}
+                                {% if company_total > 0 %}
+                                    <tr>
+                                        <td class="sticky-left"><strong>{{ data.company.name }}</strong></td>
+                                        {% for month in months %}
+                                            {% with amount=data.months|lookup:month %}
+                                                <td class="text-end">
+                                                    {% if amount > 0 %}
+                                                        ¥{{ amount|intcomma }}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                            {% endwith %}
+                                        {% endfor %}
+                                        <td class="text-end bg-light">
+                                            <strong>¥{{ company_total|intcomma }}</strong>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            {% endwith %}
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-warning">
+                        <tr>
+                            <th class="sticky-left">月別合計</th>
+                            {% for month in months %}
+                                <th class="text-end">
+                                    {% with total=monthly_totals|lookup:month %}
+                                        {% if total > 0 %}
+                                            ¥{{ total|intcomma }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    {% endwith %}
+                                </th>
+                            {% endfor %}
+                            <th class="text-end bg-danger text-white">
+                                ¥{{ grand_total|intcomma }}
+                            </th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- 統計情報 -->
+            <div class="row mt-4">
+                <div class="col-md-4">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body text-center">
+                            <h4>¥{{ grand_total|intcomma }}</h4>
+                            <p class="mb-0">年間総額（{{ tax_mode_display }}）</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h4>¥{{ grand_total|div:12|floatformat:0|intcomma }}</h4>
+                            <p class="mb-0">月平均</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h4>
+                                {% if top_company %}
+                                    {{ top_company.name }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </h4>
+                            <p class="mb-0">最高取引先</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                <h4>{{ selected_year }}年のデータがありません</h4>
+                <p class="text-muted">この年の請求書が登録されていません。</p>
+                <a href="{% url 'invoice_add' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> 請求書を登録する
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// スティッキーヘッダー用のCSS
+document.addEventListener('DOMContentLoaded', function() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .sticky-left {
+            position: sticky;
+            left: 0;
+            background-color: #f8f9fa;
+            border-right: 2px solid #dee2e6;
+            z-index: 1;
+        }
+        .table-dark .sticky-left {
+            background-color: #212529;
+        }
+        .table-responsive {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+    `;
+    document.head.appendChild(style);
+});
+</script>
+{% endblock %}

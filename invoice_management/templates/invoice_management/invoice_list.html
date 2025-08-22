@@ -1,0 +1,223 @@
+{% extends 'invoice_management/base.html' %}
+{% load humanize %}
+{% load invoice_extras %}
+
+{% block title %}請求書一覧 - 請求書管理システム{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-file-invoice"></i> 請求書一覧</h1>
+    </div>
+    <div class="col-auto">
+        <a href="{% url 'invoice_add' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> 新規登録
+        </a>
+    </div>
+</div>
+
+<!-- フィルターとサーチ -->
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get">
+            <!-- 基本フィルター -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-2">
+                    <label class="form-label">支払状況</label>
+                    <select name="status" class="form-control">
+                        <option value="">すべて</option>
+                        {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="col-md-3">
+                    <label class="form-label">取引先会社</label>
+                    <select name="company" class="form-control">
+                        <option value="">すべて</option>
+                        {% for company in companies %}
+                            <option value="{{ company.pk }}" {% if current_company == company.pk|stringformat:"s" %}selected{% endif %}>
+                                {{ company.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="col-md-5">
+                    <label class="form-label">検索</label>
+                    <input type="text" 
+                           name="search" 
+                           class="form-control" 
+                           placeholder="連番、請求書番号、会社名、摘要で検索"
+                           value="{{ search_query|default:'' }}">
+                </div>
+                
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-search"></i> 検索
+                    </button>
+                    <a href="{% url 'invoice_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- 詳細検索 -->
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">総額範囲（円）</label>
+                    <div class="input-group">
+                        <input type="number" 
+                               name="amount_min" 
+                               class="form-control" 
+                               placeholder="最小"
+                               min="0"
+                               value="{{ amount_min|default:'' }}">
+                        <span class="input-group-text">〜</span>
+                        <input type="number" 
+                               name="amount_max" 
+                               class="form-control" 
+                               placeholder="最大"
+                               min="0"
+                               value="{{ amount_max|default:'' }}">
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <label class="form-label">請求日範囲</label>
+                    <div class="input-group">
+                        <input type="date" 
+                               name="date_from" 
+                               class="form-control"
+                               value="{{ date_from|default:'' }}">
+                        <span class="input-group-text">〜</span>
+                        <input type="date" 
+                               name="date_to" 
+                               class="form-control"
+                               value="{{ date_to|default:'' }}">
+                    </div>
+                </div>
+                
+                <div class="col-md-5">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="d-flex">
+                        <small class="text-muted">※ 検索条件を入力後、検索ボタンを押してください</small>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if page_obj %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>連番</th>
+                            <th>請求書番号</th>
+                            <th>取引先会社</th>
+                            <th>請求金額</th>
+                            <th>消費税</th>
+                            <th>総額</th>
+                            <th>請求日</th>
+                            <th>支払期限</th>
+                            <th>状況</th>
+                            <th>登録者</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in page_obj %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'invoice_detail' invoice.pk %}">
+                                        {{ invoice.auto_number }}
+                                    </a>
+                                </td>
+                                <td>{{ invoice.invoice_number|default:"-" }}</td>
+                                <td>{{ invoice.company.name }}</td>
+                                <td class="text-end">¥{{ invoice.amount|floatformat:0|intcomma }}</td>
+                                <td class="text-end">¥{{ invoice.tax_amount|floatformat:0|intcomma }}</td>
+                                <td class="text-end"><strong>¥{{ invoice.total_amount|floatformat:0|intcomma }}</strong></td>
+                                <td>{{ invoice.invoice_date|date:"Y/m/d" }}</td>
+                                <td>{{ invoice.due_date|date:"Y/m/d" }}</td>
+                                <td>
+                                    {% if invoice.payment_status == 'pending' %}
+                                        <span class="badge bg-warning">未払い</span>
+                                    {% elif invoice.payment_status == 'paid' %}
+                                        <span class="badge bg-success">支払済み</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">キャンセル</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ invoice.registered_by|japanese_full_name }}</td>
+                                <td>
+                                    <a href="{% url 'invoice_detail' invoice.pk %}" 
+                                       class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'invoice_edit' invoice.pk %}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- ページネーション -->
+            {% if page_obj.has_other_pages %}
+                <nav aria-label="ページナビゲーション">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="{% url_params request page=1 %}">最初</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="{% url_params request page=page_obj.previous_page_number %}">前へ</a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                        </li>
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{% url_params request page=page_obj.next_page_number %}">次へ</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="{% url_params request page=page_obj.paginator.num_pages %}">最後</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-file-invoice fa-3x text-muted mb-3"></i>
+                <h4>請求書が見つかりません</h4>
+                {% if search_query or current_status or current_company %}
+                    <p class="text-muted">検索条件に一致する請求書がありません。</p>
+                    <a href="{% url 'invoice_list' %}" class="btn btn-primary">
+                        すべての請求書を表示
+                    </a>
+                {% else %}
+                    <p class="text-muted">まだ請求書が登録されていません。</p>
+                    <a href="{% url 'invoice_add' %}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> 請求書を登録する
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
